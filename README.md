@@ -1,4 +1,4 @@
-# BigStydyCompletionVisualization
+# BigStudyCompletionVisualization
  江西高校青年大学习完成情况数据可视化（正在制作），适用于江西省云瓣大学习系统，江西共青团公众号
 
 ## 如何使用？
