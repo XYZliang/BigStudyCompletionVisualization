@@ -9,7 +9,6 @@ import requests
 from faker import Factory
 
 # 登录的账号密码
-
 account = ""
 password = ""
 
@@ -19,7 +18,8 @@ Token = ""
 
 # 其他工具变量
 headers = {
-    "User-Agent": ""
+    "User-Agent": "",
+    "Accept":"application/json, text/javascript, */*; q=0.01"
 }
 proxies = {"http": None, "https": None}
 
@@ -34,14 +34,14 @@ def checkToken():
         print(data)
         data = orjson.loads(data)
         Token = data["token"]
-        headers["UA"] = data["UA"]
+        headers["User-Agent"] = data["UA"]
         url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/list"
         values = {}
         values['pageSize'] = '1000'
         values['pageNum'] = '1'
         values['accessToken'] = Token
         status = sendGet(url, values)
-        if (status == False):
+        if (status == ""):
             login()
 
 
@@ -49,7 +49,7 @@ def checkToken():
 def login():
     fc = Factory.create()
     UA = fc.user_agent()
-    headers["UA"] = UA
+    headers["User-Agent"] = UA
     # 登录API
     url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/login"
     # application/json参数
@@ -73,8 +73,8 @@ def sendPostJson(url, values):
     json_req = orjson.loads(json_req)
     result = json_req.get("result")
     if (json_req.get("status") != 200):
-        print("请求错误：" + result)
-        exit()
+        print("请求错误")
+        return ""
     return result
 
 
@@ -91,12 +91,11 @@ def sendGet(url, values):
     response = requests.get(req, headers=headers, proxies=proxies)
     # 读取服务器返回的数据,对HTTPResponse类型数据进行读取操作
     the_page = response.text
-    print(the_page)
     json_req = orjson.loads(the_page)
     result = json_req.get("result")
     if (json_req.get("status") != 200):
-        print("请求错误：" + result)
-        exit()
+        print("请求错误" + response.text)
+        return ""
     return result
 
 
@@ -141,6 +140,8 @@ def readConfig():
     conf.read("BigStudyConfig.cfg")
     # 以列表形式返回所有的section
     sections = conf.sections()
+    global account
+    global password
     account = conf["DEFAULT"]["Account"]
     password = conf["DEFAULT"]["Password"]
 
