@@ -29,14 +29,14 @@ proxies = {"http": None, "https": None}
 
 # 效验token
 def checkToken():
+    print("效验登录状态...")
     global Token
     global headers
     data = readDataFromFile("loginToken", False)
     if (data == False):
-        print("token不存在，重新获取")
+        print("token不存在，重新获取...")
         login()
     else:
-        print(data)
         data = orjson.loads(data)
         Token = data["token"]
         headers["User-Agent"] = data["UA"]
@@ -45,10 +45,13 @@ def checkToken():
         status = sendGet(url, values)
         if (status == ""):
             login()
+            return
+        print("效验成功...")
 
 
 # 登录爬虫函数
 def login():
+    print("尝试登录...")
     global Token
     global headers
     fc = Factory.create()
@@ -133,7 +136,7 @@ def readConfig():
     # 判断配置文件是否存在
     if os.path.exists("BigStudyConfig.cfg") or os.path.exists("BigStudyConfigTemplate.cfg"):
         if os.path.exists("BigStudyConfig.cfg"):
-            print("获取到配置文件")
+            print("读取配置文件...")
         else:
             print("获取不到配置文件，请修改配置模板文件BigStudyConfigTemplate.cfg重命名为BigStudyConfig.cfg")
             exit()
@@ -164,31 +167,55 @@ def readConfig():
         exit()
 
 
-def getCourse():
+def getCourseInfo():
     global Token
     global IgnoreCourseBefore
-
     def printCourse(ii, course):
         global ShowCourseId
-        print(str(ii) + "、" + course['title'], end="")
         if ShowCourseId:
-            print(" " + course['id'])
+            width = 30
+            name = (str(ii) + "、" + course['title'])
+            values = course['id']
+            print(
+                '{name:<{leftLen}}\t{value:>{rightLen}}'.format(name=name, value=values,
+                                                                leftLen=(int(width * 3 / 4)) - len(
+                                                                    name.encode('GBK')) + len(name),
+                                                                rightLen=(int(width / 4)) - len(
+                                                                    values.encode('GBK')) + len(values)))
         else:
-            print()
+            width = 20
+            name = str(ii) + "、"
+            values = course['title']
+            print(
+                '{name:<{leftLen}}{value:>{rightLen}}'.format(name=name, value=values,
+                                                              leftLen=(int(width / 4)) - len(name.encode('GBK')) + len(
+                                                                  name),
+                                                              rightLen=(int(width * 3 / 4)) - len(
+                                                                  values.encode('GBK')) + len(values)))
 
     url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/list"
     values = {'pageSize': '1000', 'pageNum': '1', 'accessToken': Token}
     result = sendGet(url, values)['list']
     total = len(result)
+    end = total
     result = list(reversed(result))
+    print("\033c", end="")
     for i in range(1, total + 1):
         if IgnoreCourseBefore != "":
             if int(re.findall("\d+", result[i - 1]['id'])[0]) < int(re.findall("\d+", IgnoreCourseBefore)[0]):
+                end = i
                 break
         printCourse(i, result[i - 1])
+    print("请输入需要进行操作的序号(1~" + str(end - 1) + "):")
+    chose = input()
+    if chose == '':
+        chose = 1
+    print("\033c", end="")
+    print("已选中青年大学习的" + result[int(chose) - 1]['title']+"数据")
+    return result[int(chose) - 1]
 
 
 if __name__ == '__main__':
     readConfig()
     checkToken()
-    getCourse()
+    print(getCourseInfo())
