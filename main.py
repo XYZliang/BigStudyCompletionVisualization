@@ -1,6 +1,7 @@
 # -* - coding: UTF-8 -* -
 import configparser
 import os
+import re
 import time
 import urllib
 
@@ -8,24 +9,28 @@ import orjson
 import requests
 from faker import Factory
 
+# 全局变量
 # 登录的账号密码
 account = ""
 password = ""
-
-# 全局变量
 # token值
 Token = ""
+# 配置文件
+IgnoreCourseBefore = ""
+ShowCourseId = False
 
 # 其他工具变量
 headers = {
     "User-Agent": "",
-    "Accept":"application/json, text/javascript, */*; q=0.01"
+    "Accept": "application/json, text/javascript, */*; q=0.01"
 }
 proxies = {"http": None, "https": None}
 
 
 # 效验token
 def checkToken():
+    global Token
+    global headers
     data = readDataFromFile("loginToken", False)
     if (data == False):
         print("token不存在，重新获取")
@@ -36,10 +41,7 @@ def checkToken():
         Token = data["token"]
         headers["User-Agent"] = data["UA"]
         url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/list"
-        values = {}
-        values['pageSize'] = '1000'
-        values['pageNum'] = '1'
-        values['accessToken'] = Token
+        values = {'pageSize': '1', 'pageNum': '1', 'accessToken': Token}
         status = sendGet(url, values)
         if (status == ""):
             login()
@@ -47,6 +49,8 @@ def checkToken():
 
 # 登录爬虫函数
 def login():
+    global Token
+    global headers
     fc = Factory.create()
     UA = fc.user_agent()
     headers["User-Agent"] = UA
@@ -55,6 +59,7 @@ def login():
     # application/json参数
     values = {"account": account, "password": password}
     Token = sendPostJson(url, values)['accessToken']
+    headers["User-Agent"] = UA
     loginData = {"token": Token, "time": time.time(), "UA": UA}
     loginData = orjson.dumps(loginData)
     saveDataToFile("loginToken", loginData, True)
@@ -62,6 +67,8 @@ def login():
 
 # POST请求函数
 def sendPostJson(url, values):
+    global proxies
+    global headers
     # json.dump将python对象编码成json字符串
     values_json = orjson.dumps(values)
     # requests库提交数据进行post请求
@@ -80,11 +87,12 @@ def sendPostJson(url, values):
 
 # GET请求函数
 def sendGet(url, values):
+    global proxies
+    global headers
     # 对请求数据进行编码
-    data = urllib.parse.urlencode(values).encode('utf-8')
+    data = urllib.parse.urlencode(values)
     # 若为post请求以下方式会报错TypeError: POST data should be bytes, an iterable of bytes, or a file object. It cannot be of type str.
     # Post的数据必须是bytes或者iterable of bytes,不能是str,如果是str需要进行encode()编码
-    data = urllib.parse.urlencode(values)
     # 将数据与url进行拼接
     req = url + '?' + data
     # 打开请求，获取对象
@@ -123,8 +131,8 @@ def readDataFromFile(fileName, isByte):
 
 def readConfig():
     # 判断配置文件是否存在
-    if (os.path.exists("BigStudyConfig.cfg") or os.path.exists("BigStudyConfigTemplate.cfg")):
-        if (os.path.exists("BigStudyConfig.cfg")):
+    if os.path.exists("BigStudyConfig.cfg") or os.path.exists("BigStudyConfigTemplate.cfg"):
+        if os.path.exists("BigStudyConfig.cfg"):
             print("获取到配置文件")
         else:
             print("获取不到配置文件，请修改配置模板文件BigStudyConfigTemplate.cfg重命名为BigStudyConfig.cfg")
@@ -142,10 +150,45 @@ def readConfig():
     sections = conf.sections()
     global account
     global password
-    account = conf["DEFAULT"]["Account"]
-    password = conf["DEFAULT"]["Password"]
+    global IgnoreCourseBefore
+    global ShowCourseId
+    account = conf["DEFAULT"].get("Account", "")
+    password = conf["DEFAULT"].get("Password", "")
+    IgnoreCourseBefore = conf["DEFAULT"].get("IgnoreCourseBefore", "")
+    try:
+        ShowCourseId = conf["DEFAULT"].getboolean("ShowCourseId", "False")
+    except ValueError:
+        ShowCourseId = False
+    if len(account) == 0 or len(password) == 0:
+        print("请配置必填项 Account Password")
+        exit()
+
+
+def getCourse():
+    global Token
+    global IgnoreCourseBefore
+
+    def printCourse(ii, course):
+        global ShowCourseId
+        print(str(ii) + "、" + course['title'], end="")
+        if ShowCourseId:
+            print(" " + course['id'])
+        else:
+            print()
+
+    url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/list"
+    values = {'pageSize': '1000', 'pageNum': '1', 'accessToken': Token}
+    result = sendGet(url, values)['list']
+    total = len(result)
+    result = list(reversed(result))
+    for i in range(1, total + 1):
+        if IgnoreCourseBefore != "":
+            if int(re.findall("\d+", result[i - 1]['id'])[0]) < int(re.findall("\d+", IgnoreCourseBefore)[0]):
+                break
+        printCourse(i, result[i - 1])
 
 
 if __name__ == '__main__':
     readConfig()
     checkToken()
+    getCourse()
