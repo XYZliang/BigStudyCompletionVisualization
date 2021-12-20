@@ -2,8 +2,10 @@
 import configparser
 import os
 import re
+import shutil
 import time
 import urllib
+import pandas as pd
 
 import orjson
 import requests
@@ -18,7 +20,11 @@ Token = ""
 # 配置文件
 IgnoreCourseBefore = ""
 ShowCourseId = False
-
+# 组织信息
+organizationInfo = ""
+# 课程信息
+courseId = ""
+courseName = ""
 # 其他工具变量
 headers = {
     "User-Agent": "",
@@ -40,13 +46,18 @@ def checkToken():
         data = orjson.loads(data)
         Token = data["token"]
         headers["User-Agent"] = data["UA"]
-        url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/list"
-        values = {'pageSize': '1', 'pageNum': '1', 'accessToken': Token}
+        url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/info"
+        values = {'accessToken': Token}
         status = sendGet(url, values)
+        # print(status)
+        global organizationInfo
+        organizationInfo = status
         if (status == ""):
             login()
             return
         print("效验成功...")
+        print("欢迎" + organizationInfo['branch'])
+        # time.sleep(3)
 
 
 # 登录爬虫函数
@@ -170,6 +181,7 @@ def readConfig():
 def getCourseInfo():
     global Token
     global IgnoreCourseBefore
+
     def printCourse(ii, course):
         global ShowCourseId
         if ShowCourseId:
@@ -211,11 +223,43 @@ def getCourseInfo():
     if chose == '':
         chose = 1
     print("\033c", end="")
-    print("已选中青年大学习的" + result[int(chose) - 1]['title']+"数据")
-    return result[int(chose) - 1]
+    print("已选中青年大学习的" + result[int(chose) - 1]['title'] + "数据")
+    global courseId
+    courseId = result[int(chose) - 1]['id']
+    global courseName
+    courseName = result[int(chose) - 1]['title']
+
+
+def mymovefile(srcfile, dstfile):
+    fpath, fname = os.path.split(dstfile)  # 分离文件名和路径
+    if not os.path.exists(fpath):
+        os.makedirs(fpath)  # 创建路径
+    shutil.move(srcfile, dstfile)  # 移动文件
+
+
+def getStudyInfo():
+    global courseId
+    global courseName
+    url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/statis"
+    values = {'course': courseId, 'nid': organizationInfo['nid'], 'accessToken': Token}
+    result = sendGet(url, values)
+    result = sorted(result, key=lambda info: info['title'])
+    df = pd.DataFrame(result)
+    #  数据清洗
+    df = df[~df['users'].isin([0])]
+    excel = pd.ExcelWriter(str(courseName + "大学习完成情况.xlsx"))
+    df.to_excel(excel)
+    excel.save()
+    mymovefile(str("./"+courseName + "大学习完成情况.xlsx"), "./处理结果/" + courseName + "大学习完成情况.xlsx")
+
+    # df = df.sort_values(by="id", 、ascending=False)
+    # print(df)
+    # df = df.sort_values(by="title", ascending=False)
+    # print(df)
 
 
 if __name__ == '__main__':
     readConfig()
     checkToken()
-    print(getCourseInfo())
+    getCourseInfo()
+    getStudyInfo()
