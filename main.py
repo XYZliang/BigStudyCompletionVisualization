@@ -9,6 +9,7 @@ import pandas as pd
 
 import orjson
 import requests
+import openpyxl
 from faker import Factory
 
 # 全局变量
@@ -42,6 +43,7 @@ def checkToken():
     if (data == False):
         print("token不存在，重新获取...")
         login()
+        checkToken()
     else:
         data = orjson.loads(data)
         Token = data["token"]
@@ -54,6 +56,7 @@ def checkToken():
         organizationInfo = status
         if (status == ""):
             login()
+            checkToken()
             return
         print("效验成功...")
         print("欢迎" + organizationInfo['branch'])
@@ -250,7 +253,8 @@ def getStudyInfo():
     excel = pd.ExcelWriter(str(courseName + "大学习完成情况.xlsx"))
     df.to_excel(excel)
     excel.save()
-    mymovefile(str("./"+courseName + "大学习完成情况.xlsx"), "./处理结果/" + courseName + "大学习完成情况.xlsx")
+    mymovefile(str("./" + courseName + "大学习完成情况.xlsx"), "./处理结果/" + courseName + "大学习完成情况.xlsx")
+    print("已导出本期各班完成情况表EXCEL表到处理结果文件夹")
 
     # df = df.sort_values(by="id", 、ascending=False)
     # print(df)
@@ -258,8 +262,44 @@ def getStudyInfo():
     # print(df)
 
 
+def outMenu(name, values, width):
+    print(
+        '{name:<{leftLen}}\t{value:>{rightLen}}'.format(name=name, value=values,
+                                                        leftLen=(int(width / 8)) - len(
+                                                            name.encode('GBK')) + len(name),
+                                                        rightLen=(int(width * 7 / 8)) - len(
+                                                            values.encode('GBK')) + len(values)))
+
+
+def showMenu():
+    print("\033c", end="")
+    print("欢迎" + organizationInfo['branch'])
+    menu = ['导出某期大学习各班完成率表格及统计图', '导出某班每次大学习完成率情况表格及统计图', '导出总大学习完成情况表格及其统计图', '导出某期未完成名单及其统计图','退出程序']
+
+    info = ("欢迎使用BigStudyCompletionVisualization，请选择功能(1~" + str(len(menu)) + ")：")
+    for i in range(1, len(menu) + 1):
+        outMenu(str(i), menu[i - 1], len(info.encode('GBK')) - 1)
+    print(info)
+    fun1 = input()
+    return fun1
+
 if __name__ == '__main__':
     readConfig()
     checkToken()
-    getCourseInfo()
-    getStudyInfo()
+    while True:
+        fun = showMenu()
+        match int(fun):
+            case 1:
+                getCourseInfo()
+                getStudyInfo()
+                break
+            case 2:
+                print("功能开发中")
+            case 3:
+                print("功能开发中")
+            case 4:
+                print("功能开发中")
+            case 5:
+                break
+            case _:
+                print("输入菜单无效，请重新输入！")
