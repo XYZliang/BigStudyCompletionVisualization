@@ -5,8 +5,11 @@ import re
 import shutil
 import time
 import urllib
-import pandas as pd
 
+import pandas as pd
+import numpy as np
+from matplotlib import pyplot as plt
+import matplotlib
 import orjson
 import requests
 import openpyxl
@@ -29,7 +32,8 @@ courseName = ""
 # 其他工具变量
 headers = {
     "User-Agent": "",
-    "Accept": "application/json, text/javascript, */*; q=0.01"
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    'Connection': 'close',
 }
 proxies = {"http": None, "https": None}
 
@@ -250,17 +254,53 @@ def getStudyInfo():
     df = pd.DataFrame(result)
     #  数据清洗
     df = df[~df['users'].isin([0])]
+    df = df.drop(['rate'], axis=1)
+    df.columns = ['团委id', '团委名称', '团员人数', '已学习人数', '已学习人次', '完成率']
+    df['团员人数'].astype(int)
+    df['已学习人数'].astype(int)
+    df['已学习人次'].astype(int)
+    df['学习期数old'] = courseName
+    df['完成率'].astype(float)
+    newLow = df.pop('学习期数old')
+    df.insert(3, '大学习课程', newLow)
     excel = pd.ExcelWriter(str(courseName + "大学习完成情况.xlsx"))
     df.to_excel(excel)
     excel.save()
     mymovefile(str("./" + courseName + "大学习完成情况.xlsx"), "./处理结果/" + courseName + "大学习完成情况.xlsx")
+    # for u in df['团委名称']:
+    #     u = str(u).replace("团支部", "")
+    for indexs in df.index:
+        df.loc[indexs, '团委名称'] = df.loc[indexs, '团委名称'].replace("团支部", "")
+    # print(df)
     print("已导出本期各班完成情况表EXCEL表到处理结果文件夹")
-
-    # df = df.sort_values(by="id", 、ascending=False)
-    # print(df)
-    # df = df.sort_values(by="title", ascending=False)
-    # print(df)
-
+    a = ""
+    for i in df['团委名称']:
+        a += i
+    # print(a)
+    # print((len(a)+len(df['团委名称'])*5))
+    # print(len(df['团委名称'])*5)
+    # plt.figure(figsize=((len(a)+len(df['团委名称'])*5)/100, 5))
+    # ax = plt.subplot(111)  # 这是画布哦，说明只在一张图显示，也可分割多图
+    plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
+    plt.rcParams['axes.unicode_minus'] = False  # 显示负号
+    # df.plot.bar(y=['完成率'], x='团委名称')
+    # plt.xlabel("团委名称")
+    # plt.ylabel("完成率（单位：%）")
+    # plt.savefig(courseName + "大学习完成情况.png")
+    # plt.show()
+    plt.figure(figsize=(df.shape[0], df.shape[0] / 2), dpi=100)
+    plt.bar(df['团委名称'], df['完成率'], color='#002EA6')
+    ax = plt.subplot(111)
+    plt.xticks(range(len(df['团委名称'])), df['团委名称'], rotation=45, fontsize=20)
+    plt.yticks(fontsize=80)
+    # plt.title = ((courseName + "大学习完成情况"))
+    ax.set_title((courseName + "大学习完成情况"), fontsize=100)
+    plt.xlabel("团委名称", fontsize=20)
+    plt.ylabel("完成率（单位：%）", fontsize=80)
+    plt.savefig(courseName + "大学习完成情况.png")
+    plt.show()
+    mymovefile(str("./" + courseName + "大学习完成情况.png"), "./处理结果/" + courseName + "大学习完成情况.png")
+    print("已导出本期各班完成情况可视化统计图到处理结果文件夹")
 
 def outMenu(name, values, width):
     print(
@@ -274,7 +314,7 @@ def outMenu(name, values, width):
 def showMenu():
     print("\033c", end="")
     print("欢迎" + organizationInfo['branch'])
-    menu = ['导出某期大学习各班完成率表格及统计图', '导出某班每次大学习完成率情况表格及统计图', '导出总大学习完成情况表格及其统计图', '导出某期未完成名单及其统计图','退出程序']
+    menu = ['导出某期大学习各班完成率表格及统计图', '导出某班每次大学习完成率情况表格及统计图', '导出总大学习完成情况表格及其统计图', '导出某期未完成名单及其统计图', '退出程序']
 
     info = ("欢迎使用BigStudyCompletionVisualization，请选择功能(1~" + str(len(menu)) + ")：")
     for i in range(1, len(menu) + 1):
@@ -282,6 +322,7 @@ def showMenu():
     print(info)
     fun1 = input()
     return fun1
+
 
 if __name__ == '__main__':
     readConfig()
