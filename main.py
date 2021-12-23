@@ -29,6 +29,8 @@ organizationInfo = ""
 # 课程信息
 courseId = ""
 courseName = ""
+# 总人数
+Total = 0
 # 其他工具变量
 headers = {
     "User-Agent": "",
@@ -44,10 +46,10 @@ def checkToken():
     global Token
     global headers
     data = readDataFromFile("loginToken", False)
-    if (data == False):
+    if not data:
         print("token不存在，重新获取...")
         login()
-        checkToken()
+        # checkToken()
     else:
         data = orjson.loads(data)
         Token = data["token"]
@@ -58,9 +60,9 @@ def checkToken():
         # print(status)
         global organizationInfo
         organizationInfo = status
-        if (status == ""):
+        if status == "":
             login()
-            checkToken()
+            # checkToken()
             return
         print("效验成功...")
         print("欢迎" + organizationInfo['branch'])
@@ -84,6 +86,11 @@ def login():
     loginData = {"token": Token, "time": time.time(), "UA": UA}
     loginData = orjson.dumps(loginData)
     saveDataToFile("loginToken", loginData, True)
+    url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/info"
+    values = {'accessToken': Token}
+    status = sendGet(url, values)
+    global organizationInfo
+    organizationInfo = status
 
 
 # POST请求函数
@@ -100,7 +107,7 @@ def sendPostJson(url, values):
     json_req = orjson.dumps(change)
     json_req = orjson.loads(json_req)
     result = json_req.get("result")
-    if (json_req.get("status") != 200):
+    if json_req.get("status") != 200:
         print("请求错误")
         return ""
     return result
@@ -112,7 +119,7 @@ def sendGet(url, values):
     global headers
     # 对请求数据进行编码
     data = urllib.parse.urlencode(values)
-    # 若为post请求以下方式会报错TypeError: POST data should be bytes, an iterable of bytes, or a file object. It cannot be of type str.
+    # 若为post请求以下方式会报错TypeError: POST data should be bytes, an iterable of bytes, or a file object.
     # Post的数据必须是bytes或者iterable of bytes,不能是str,如果是str需要进行encode()编码
     # 将数据与url进行拼接
     req = url + '?' + data
@@ -122,14 +129,14 @@ def sendGet(url, values):
     the_page = response.text
     json_req = orjson.loads(the_page)
     result = json_req.get("result")
-    if (json_req.get("status") != 200):
+    if json_req.get("status") != 200:
         print("请求错误" + response.text)
         return ""
     return result
 
 
 def saveDataToFile(fileName, data, isByte):
-    if (isByte):
+    if isByte:
         file = open(fileName + ".data", "wb")
     else:
         file = open(fileName + ".data", "w")
@@ -139,7 +146,7 @@ def saveDataToFile(fileName, data, isByte):
 
 def readDataFromFile(fileName, isByte):
     try:
-        if (isByte):
+        if isByte:
             file = open(fileName + ".data", "rb")
         else:
             file = open(fileName + ".data", "r")
@@ -173,6 +180,7 @@ def readConfig():
     global password
     global IgnoreCourseBefore
     global ShowCourseId
+    global Total
     account = conf["DEFAULT"].get("Account", "")
     password = conf["DEFAULT"].get("Password", "")
     IgnoreCourseBefore = conf["DEFAULT"].get("IgnoreCourseBefore", "")
@@ -180,12 +188,13 @@ def readConfig():
         ShowCourseId = conf["DEFAULT"].getboolean("ShowCourseId", "False")
     except ValueError:
         ShowCourseId = False
+    Total = conf["DEFAULT"].getint("Total", 0)
     if len(account) == 0 or len(password) == 0:
         print("请配置必填项 Account Password")
         exit()
 
 
-def getCourseInfo():
+def getCourseInfo(info=False):
     global Token
     global IgnoreCourseBefore
 
@@ -212,6 +221,8 @@ def getCourseInfo():
                                                               rightLen=(int(width * 3 / 4)) - len(
                                                                   values.encode('GBK')) + len(values)))
 
+    if info:
+        courseList = []
     url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/list"
     values = {'pageSize': '1000', 'pageNum': '1', 'accessToken': Token}
     result = sendGet(url, values)['list']
@@ -222,9 +233,15 @@ def getCourseInfo():
     for i in range(1, total + 1):
         if IgnoreCourseBefore != "":
             if int(re.findall("\d+", result[i - 1]['id'])[0]) < int(re.findall("\d+", IgnoreCourseBefore)[0]):
-                end = i
-                break
-        printCourse(i, result[i - 1])
+                if info:
+                    return courseList
+                else:
+                    end = i
+                    break
+        if info:
+            courseList.append(result[i - 1])
+        else:
+            printCourse(i, result[i - 1])
     print("请输入需要进行操作的序号(1~" + str(end - 1) + "):")
     chose = input()
     if chose == '':
@@ -288,19 +305,20 @@ def getStudyInfo():
     # plt.ylabel("完成率（单位：%）")
     # plt.savefig(courseName + "大学习完成情况.png")
     # plt.show()
+    # plt.figure(dpi=300)
     plt.figure(figsize=(df.shape[0], df.shape[0] / 2), dpi=100)
     plt.bar(df['团委名称'], df['完成率'], color='#002EA6')
     ax = plt.subplot(111)
     plt.xticks(range(len(df['团委名称'])), df['团委名称'], rotation=45, fontsize=20)
     plt.yticks(fontsize=80)
     # plt.title = ((courseName + "大学习完成情况"))
-    ax.set_title((courseName + "大学习完成情况"), fontsize=100)
-    plt.xlabel("团委名称", fontsize=20)
-    plt.ylabel("完成率（单位：%）", fontsize=80)
-    plt.savefig(courseName + "大学习完成情况.png")
-    plt.show()
+    ax.set_title((courseName + "大学习完成情况"), fontsize=80)
+    plt.xlabel("团委名称", fontsize=70)
+    plt.ylabel("完成率（单位：%）", fontsize=70)
+    plt.savefig(courseName + "大学习完成情况.png", bbox_inches='tight')
     mymovefile(str("./" + courseName + "大学习完成情况.png"), "./处理结果/" + courseName + "大学习完成情况.png")
     print("已导出本期各班完成情况可视化统计图到处理结果文件夹")
+
 
 def outMenu(name, values, width):
     print(
@@ -314,7 +332,7 @@ def outMenu(name, values, width):
 def showMenu():
     print("\033c", end="")
     print("欢迎" + organizationInfo['branch'])
-    menu = ['导出某期大学习各班完成率表格及统计图', '导出某班每次大学习完成率情况表格及统计图', '导出总大学习完成情况表格及其统计图', '导出某期未完成名单及其统计图', '退出程序']
+    menu = ['导出某期大学习各班完成率表格及统计图', '导出总大学习完成情况情况表格及折线图', '导出某班每次大学习完成率情况表格及折线图', '导出某期未完成名单及其统计图', '退出程序']
 
     info = ("欢迎使用BigStudyCompletionVisualization，请选择功能(1~" + str(len(menu)) + ")：")
     for i in range(1, len(menu) + 1):
@@ -322,6 +340,16 @@ def showMenu():
     print(info)
     fun1 = input()
     return fun1
+
+
+def getLearnTime(thisCourseId):
+    url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/statis"
+    values = {'course': thisCourseId, 'nid': organizationInfo['nid'], 'accessToken': Token}
+    result = sendGet(url, values)
+    total = 0
+    for i in result:
+        total += int(i['users'])
+    return total
 
 
 if __name__ == '__main__':
@@ -335,7 +363,35 @@ if __name__ == '__main__':
                 getStudyInfo()
                 break
             case 2:
-                print("功能开发中")
+                if Total <= 0:
+                    print("未配置总人数为Total或总人数Total不合法！")
+                    break
+                courseHis = []
+                courseList = getCourseInfo(True)
+                for i in courseList:
+                    courseHis.append({'大学习期数': i['title'], '完成率%': 100.0 * getLearnTime(i['id']) / Total})
+                courseHis.reverse()
+                df = pd.DataFrame(courseHis)
+                excel = pd.ExcelWriter("总大学习完成情况.xlsx")
+                df.to_excel(excel)
+                excel.save()
+                mymovefile("总大学习完成情况.xlsx", "./处理结果/总大学习完成情况.xlsx")
+                print("已导出总完成情况表EXCEL表到处理结果文件夹")
+                plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
+                plt.rcParams['axes.unicode_minus'] = False  # 显示负号
+                plt.figure(dpi=300)
+                plt.title(organizationInfo['branch'] + '总大学习完成情况',fontsize='20')
+                plt.xlabel("大学习期数",fontsize='16')
+                plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
+                plt.ylabel("完成率（单位：%）",fontsize='16')
+                plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
+                # df.plot()
+                # plt.show()
+                outfile = organizationInfo['branch'] + '总大学习完成情况.png'
+                plt.savefig(outfile, bbox_inches='tight')
+                mymovefile(organizationInfo['branch'] + '总大学习完成情况.png', "./处理结果/"+organizationInfo['branch'] + '总大学习完成情况.png')
+                plt.close()
+                print("已导出总大学习完成情况可视化统计图到处理结果文件夹")
             case 3:
                 print("功能开发中")
             case 4:
