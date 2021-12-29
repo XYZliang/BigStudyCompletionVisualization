@@ -5,7 +5,7 @@ import re
 import shutil
 import time
 import urllib
-
+from tqdm import tqdm
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -117,6 +117,9 @@ def sendPostJson(url, values):
 def sendGet(url, values):
     global proxies
     global headers
+    requests.adapters.DEFAULT_RETRIES = 5  # 增加重连次数
+    s = requests.session()
+    s.keep_alive = False
     # 对请求数据进行编码
     data = urllib.parse.urlencode(values)
     # 若为post请求以下方式会报错TypeError: POST data should be bytes, an iterable of bytes, or a file object.
@@ -124,7 +127,7 @@ def sendGet(url, values):
     # 将数据与url进行拼接
     req = url + '?' + data
     # 打开请求，获取对象
-    response = requests.get(req, headers=headers, proxies=proxies)
+    response = s.get(req, headers=headers, proxies=proxies)
     # 读取服务器返回的数据,对HTTPResponse类型数据进行读取操作
     the_page = response.text
     json_req = orjson.loads(the_page)
@@ -281,7 +284,7 @@ def getStudyInfo():
     newLow = df.pop('学习期数old')
     df.insert(3, '大学习课程', newLow)
     excel = pd.ExcelWriter(str(courseName + "大学习完成情况.xlsx"))
-    df.to_excel(excel)
+    df.to_excel(excel, index=True, header=False)
     excel.save()
     mymovefile(str("./" + courseName + "大学习完成情况.xlsx"), "./处理结果/" + courseName + "大学习完成情况.xlsx")
     # for u in df['团委名称']:
@@ -352,6 +355,17 @@ def getLearnTime(thisCourseId):
     return total
 
 
+def getLearnTimeGroupByClass(thisCourseId):
+    url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/statis"
+    values = {'course': thisCourseId, 'nid': organizationInfo['nid'], 'accessToken': Token}
+    result = sendGet(url, values)
+    res = {}
+    for i in result:
+        if i['memberCnt'] != '0':
+            res[i['title']] = i['score']
+    return res
+
+
 if __name__ == '__main__':
     readConfig()
     checkToken()
@@ -380,20 +394,73 @@ if __name__ == '__main__':
                 plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
                 plt.rcParams['axes.unicode_minus'] = False  # 显示负号
                 plt.figure(dpi=300)
-                plt.title(organizationInfo['branch'] + '总大学习完成情况',fontsize='20')
-                plt.xlabel("大学习期数",fontsize='16')
+                plt.title(organizationInfo['branch'] + '总大学习完成情况', fontsize='20')
+                plt.xlabel("大学习期数", fontsize='16')
                 plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
-                plt.ylabel("完成率（单位：%）",fontsize='16')
+                plt.ylabel("完成率（单位：%）", fontsize='16')
                 plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
                 # df.plot()
                 # plt.show()
                 outfile = organizationInfo['branch'] + '总大学习完成情况.png'
                 plt.savefig(outfile, bbox_inches='tight')
-                mymovefile(organizationInfo['branch'] + '总大学习完成情况.png', "./处理结果/"+organizationInfo['branch'] + '总大学习完成情况.png')
+                mymovefile(organizationInfo['branch'] + '总大学习完成情况.png',
+                           "./处理结果/" + organizationInfo['branch'] + '总大学习完成情况.png')
                 plt.close()
                 print("已导出总大学习完成情况可视化统计图到处理结果文件夹")
             case 3:
-                print("功能开发中")
+                courseHis = {}
+                courseList = getCourseInfo(True)
+                with tqdm(total=len(courseList), desc='数据统计', leave=True) as pbar:
+                    for i in courseList:
+                        res = getLearnTimeGroupByClass(i['id'])
+                        for ii in res:
+                            if ii.replace("团支部", "") not in courseHis.keys():
+                                courseHis[ii.replace("团支部", "")] = []
+                            courseHis[ii.replace("团支部", "")].append({i['title']: res[ii]})
+                        pbar.update(1)
+                noti = "请输入需要导出的班级的序号（1~" + str(len(courseHis)) + ")："
+                for i in courseHis:
+                    courseHis[i].reverse()
+                classList = sorted(list(courseHis.keys()))
+                classList.reverse()
+                for i in range(1, len(classList) + 1):
+                    outMenu(str(i), classList[i - 1], len(noti.encode('GBK')) - 1)
+                print(noti)
+                c = input()
+                data = courseHis[classList[int(c)-1]]
+                print(data)
+                datas = {'大学习期数':[], '完成率%':[]}
+                # dataList = list(data.keys())
+                for i in data:
+                    # print(i)
+                    datas['大学习期数'].append(list(i.keys())[0])
+                    datas['完成率%'].append(i[list(i.keys())[0]])
+                df = pd.DataFrame(datas)
+                print(df)
+                excel = pd.ExcelWriter(classList[int(c)-1]+"总大学习完成情况.xlsx")
+                df.to_excel(excel)
+                excel.save()
+                mymovefile(classList[int(c)-1]+"总大学习完成情况.xlsx", "./处理结果/"+classList[int(c)-1]+"总大学习完成情况.xlsx")
+                print("已导出"+classList[int(c)-1]+"总完成情况表EXCEL表到处理结果文件夹")
+                plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
+                plt.rcParams['axes.unicode_minus'] = False  # 显示负号
+                plt.figure(dpi=300)
+                plt.title(classList[int(c)-1] + '总大学习完成情况', fontsize='20')
+                plt.xlabel("大学习期数", fontsize='16')
+                plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
+                plt.ylabel("完成率（单位：%）", fontsize='16')
+                plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
+                # df.plot()
+                # plt.show()
+                outfile = classList[int(c)-1] + '总大学习完成情况.png'
+                plt.savefig(outfile, bbox_inches='tight')
+                mymovefile(classList[int(c)-1] + '总大学习完成情况.png',
+                           "./处理结果/" + classList[int(c)-1] + '总大学习完成情况.png')
+                plt.close()
+                print("已导出"+classList[int(c)-1]+"总大学习完成情况可视化统计图到处理结果文件夹")
+                break
+                # courseHis.append({'大学习期数': i['title'], '完成率%': 100.0 * getLearnTime(i['id']) / Total})
+                # courseHis.reverse()
             case 4:
                 print("功能开发中")
             case 5:
