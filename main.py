@@ -427,38 +427,36 @@ if __name__ == '__main__':
                     outMenu(str(i), classList[i - 1], len(noti.encode('GBK')) - 1)
                 print(noti)
                 c = input()
-                data = courseHis[classList[int(c)-1]]
-                print(data)
-                datas = {'大学习期数':[], '完成率%':[]}
+                print("\033c", end="")
+                data = courseHis[classList[int(c) - 1]]
+                datas = {'大学习期数': [], '完成率%': []}
                 # dataList = list(data.keys())
                 for i in data:
                     # print(i)
                     datas['大学习期数'].append(list(i.keys())[0])
                     datas['完成率%'].append(i[list(i.keys())[0]])
                 df = pd.DataFrame(datas)
-                print(df)
-                excel = pd.ExcelWriter(classList[int(c)-1]+"总大学习完成情况.xlsx")
+                excel = pd.ExcelWriter(classList[int(c) - 1] + "总大学习完成情况.xlsx")
                 df.to_excel(excel)
                 excel.save()
-                mymovefile(classList[int(c)-1]+"总大学习完成情况.xlsx", "./处理结果/"+classList[int(c)-1]+"总大学习完成情况.xlsx")
-                print("已导出"+classList[int(c)-1]+"总完成情况表EXCEL表到处理结果文件夹")
+                mymovefile(classList[int(c) - 1] + "总大学习完成情况.xlsx", "./处理结果/" + classList[int(c) - 1] + "总大学习完成情况.xlsx")
+                print("已导出" + classList[int(c) - 1] + "总完成情况表EXCEL表到处理结果文件夹")
                 plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
                 plt.rcParams['axes.unicode_minus'] = False  # 显示负号
                 plt.figure(dpi=300)
-                plt.title(classList[int(c)-1] + '总大学习完成情况', fontsize='20')
+                plt.title(classList[int(c) - 1] + '总大学习完成情况', fontsize='20')
                 plt.xlabel("大学习期数", fontsize='16')
                 plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
                 plt.ylabel("完成率（单位：%）", fontsize='16')
                 plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
                 # df.plot()
                 # plt.show()
-                outfile = classList[int(c)-1] + '总大学习完成情况.png'
+                outfile = classList[int(c) - 1] + '总大学习完成情况.png'
                 plt.savefig(outfile, bbox_inches='tight')
-                mymovefile(classList[int(c)-1] + '总大学习完成情况.png',
-                           "./处理结果/" + classList[int(c)-1] + '总大学习完成情况.png')
+                mymovefile(classList[int(c) - 1] + '总大学习完成情况.png',
+                           "./处理结果/" + classList[int(c) - 1] + '总大学习完成情况.png')
                 plt.close()
-                print("已导出"+classList[int(c)-1]+"总大学习完成情况可视化统计图到处理结果文件夹")
-                break
+                print("已导出" + classList[int(c) - 1] + "总大学习完成情况可视化统计图到处理结果文件夹")
                 # courseHis.append({'大学习期数': i['title'], '完成率%': 100.0 * getLearnTime(i['id']) / Total})
                 # courseHis.reverse()
             case 4:
