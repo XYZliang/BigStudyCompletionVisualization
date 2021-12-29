@@ -3,8 +3,11 @@ import configparser
 import os
 import re
 import shutil
+import sys
 import time
 import urllib
+
+from openpyxl import load_workbook
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -335,7 +338,7 @@ def outMenu(name, values, width):
 def showMenu():
     print("\033c", end="")
     print("欢迎" + organizationInfo['branch'])
-    menu = ['导出某期大学习各班完成率表格及统计图', '导出总大学习完成情况情况表格及折线图', '导出某班每次大学习完成率情况表格及折线图', '导出某期未完成名单及其统计图', '退出程序']
+    menu = ['导出某期大学习各班完成率表格及统计图', '导出总大学习完成情况情况表格及折线图', '导出某班每次大学习完成率情况表格及折线图', '导出最新一期未完成名单及其统计图', '退出程序']
 
     info = ("欢迎使用BigStudyCompletionVisualization，请选择功能(1~" + str(len(menu)) + ")：")
     for i in range(1, len(menu) + 1):
@@ -367,101 +370,153 @@ def getLearnTimeGroupByClass(thisCourseId):
 
 
 if __name__ == '__main__':
+    if sys.version < '3.10':
+        print("需要python版本3.10及以上！")
+    exit()
     readConfig()
     checkToken()
-    while True:
-        fun = showMenu()
-        match int(fun):
-            case 1:
-                getCourseInfo()
-                getStudyInfo()
-                break
-            case 2:
-                if Total <= 0:
-                    print("未配置总人数为Total或总人数Total不合法！")
-                    break
-                courseHis = []
-                courseList = getCourseInfo(True)
+    fun = showMenu()
+    match int(fun):
+        case 1:
+            getCourseInfo()
+            getStudyInfo()
+        case 2:
+            if Total <= 0:
+                print("未配置总人数为Total或总人数Total不合法！")
+                exit()
+            courseHis = []
+            courseList = getCourseInfo(True)
+            for i in courseList:
+                courseHis.append({'大学习期数': i['title'], '完成率%': 100.0 * getLearnTime(i['id']) / Total})
+            courseHis.reverse()
+            df = pd.DataFrame(courseHis)
+            excel = pd.ExcelWriter("总大学习完成情况.xlsx")
+            df.to_excel(excel)
+            excel.save()
+            mymovefile("总大学习完成情况.xlsx", "./处理结果/总大学习完成情况.xlsx")
+            print("已导出总完成情况表EXCEL表到处理结果文件夹")
+            plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
+            plt.rcParams['axes.unicode_minus'] = False  # 显示负号
+            plt.figure(dpi=300)
+            plt.title(organizationInfo['branch'] + '总大学习完成情况', fontsize='20')
+            plt.xlabel("大学习期数", fontsize='16')
+            plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
+            plt.ylabel("完成率（单位：%）", fontsize='16')
+            plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
+            # df.plot()
+            # plt.show()
+            outfile = organizationInfo['branch'] + '总大学习完成情况.png'
+            plt.savefig(outfile, bbox_inches='tight')
+            mymovefile(organizationInfo['branch'] + '总大学习完成情况.png',
+                       "./处理结果/" + organizationInfo['branch'] + '总大学习完成情况.png')
+            plt.close()
+            print("已导出总大学习完成情况可视化统计图到处理结果文件夹")
+        case 3:
+            courseHis = {}
+            courseList = getCourseInfo(True)
+            with tqdm(total=len(courseList), desc='数据统计', leave=True) as pbar:
                 for i in courseList:
-                    courseHis.append({'大学习期数': i['title'], '完成率%': 100.0 * getLearnTime(i['id']) / Total})
-                courseHis.reverse()
-                df = pd.DataFrame(courseHis)
-                excel = pd.ExcelWriter("总大学习完成情况.xlsx")
-                df.to_excel(excel)
-                excel.save()
-                mymovefile("总大学习完成情况.xlsx", "./处理结果/总大学习完成情况.xlsx")
-                print("已导出总完成情况表EXCEL表到处理结果文件夹")
-                plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
-                plt.rcParams['axes.unicode_minus'] = False  # 显示负号
-                plt.figure(dpi=300)
-                plt.title(organizationInfo['branch'] + '总大学习完成情况', fontsize='20')
-                plt.xlabel("大学习期数", fontsize='16')
-                plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
-                plt.ylabel("完成率（单位：%）", fontsize='16')
-                plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
-                # df.plot()
-                # plt.show()
-                outfile = organizationInfo['branch'] + '总大学习完成情况.png'
-                plt.savefig(outfile, bbox_inches='tight')
-                mymovefile(organizationInfo['branch'] + '总大学习完成情况.png',
-                           "./处理结果/" + organizationInfo['branch'] + '总大学习完成情况.png')
-                plt.close()
-                print("已导出总大学习完成情况可视化统计图到处理结果文件夹")
-            case 3:
-                courseHis = {}
-                courseList = getCourseInfo(True)
-                with tqdm(total=len(courseList), desc='数据统计', leave=True) as pbar:
-                    for i in courseList:
-                        res = getLearnTimeGroupByClass(i['id'])
-                        for ii in res:
-                            if ii.replace("团支部", "") not in courseHis.keys():
-                                courseHis[ii.replace("团支部", "")] = []
-                            courseHis[ii.replace("团支部", "")].append({i['title']: res[ii]})
-                        pbar.update(1)
-                noti = "请输入需要导出的班级的序号（1~" + str(len(courseHis)) + ")："
-                for i in courseHis:
-                    courseHis[i].reverse()
-                classList = sorted(list(courseHis.keys()))
-                classList.reverse()
-                for i in range(1, len(classList) + 1):
-                    outMenu(str(i), classList[i - 1], len(noti.encode('GBK')) - 1)
-                print(noti)
-                c = input()
-                print("\033c", end="")
-                data = courseHis[classList[int(c) - 1]]
-                datas = {'大学习期数': [], '完成率%': []}
-                # dataList = list(data.keys())
-                for i in data:
-                    # print(i)
-                    datas['大学习期数'].append(list(i.keys())[0])
-                    datas['完成率%'].append(i[list(i.keys())[0]])
-                df = pd.DataFrame(datas)
-                excel = pd.ExcelWriter(classList[int(c) - 1] + "总大学习完成情况.xlsx")
-                df.to_excel(excel)
-                excel.save()
-                mymovefile(classList[int(c) - 1] + "总大学习完成情况.xlsx", "./处理结果/" + classList[int(c) - 1] + "总大学习完成情况.xlsx")
-                print("已导出" + classList[int(c) - 1] + "总完成情况表EXCEL表到处理结果文件夹")
-                plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
-                plt.rcParams['axes.unicode_minus'] = False  # 显示负号
-                plt.figure(dpi=300)
-                plt.title(classList[int(c) - 1] + '总大学习完成情况', fontsize='20')
-                plt.xlabel("大学习期数", fontsize='16')
-                plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
-                plt.ylabel("完成率（单位：%）", fontsize='16')
-                plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
-                # df.plot()
-                # plt.show()
-                outfile = classList[int(c) - 1] + '总大学习完成情况.png'
-                plt.savefig(outfile, bbox_inches='tight')
-                mymovefile(classList[int(c) - 1] + '总大学习完成情况.png',
-                           "./处理结果/" + classList[int(c) - 1] + '总大学习完成情况.png')
-                plt.close()
-                print("已导出" + classList[int(c) - 1] + "总大学习完成情况可视化统计图到处理结果文件夹")
-                # courseHis.append({'大学习期数': i['title'], '完成率%': 100.0 * getLearnTime(i['id']) / Total})
-                # courseHis.reverse()
-            case 4:
-                print("功能开发中")
-            case 5:
-                break
-            case _:
-                print("输入菜单无效，请重新输入！")
+                    res = getLearnTimeGroupByClass(i['id'])
+                    for ii in res:
+                        if ii.replace("团支部", "") not in courseHis.keys():
+                            courseHis[ii.replace("团支部", "")] = []
+                        courseHis[ii.replace("团支部", "")].append({i['title']: res[ii]})
+                    pbar.update(1)
+            noti = "请输入需要导出的班级的序号（1~" + str(len(courseHis)) + ")："
+            for i in courseHis:
+                courseHis[i].reverse()
+            classList = sorted(list(courseHis.keys()))
+            classList.reverse()
+            for i in range(1, len(classList) + 1):
+                outMenu(str(i), classList[i - 1], len(noti.encode('GBK')) - 1)
+            print(noti)
+            c = input()
+            print("\033c", end="")
+            data = courseHis[classList[int(c) - 1]]
+            datas = {'大学习期数': [], '完成率%': []}
+            # dataList = list(data.keys())
+            for i in data:
+                # print(i)
+                datas['大学习期数'].append(list(i.keys())[0])
+                datas['完成率%'].append(i[list(i.keys())[0]])
+            df = pd.DataFrame(datas)
+            excel = pd.ExcelWriter(classList[int(c) - 1] + "总大学习完成情况.xlsx")
+            df.to_excel(excel)
+            excel.save()
+            mymovefile(classList[int(c) - 1] + "总大学习完成情况.xlsx", "./处理结果/" + classList[int(c) - 1] + "总大学习完成情况.xlsx")
+            print("已导出" + classList[int(c) - 1] + "总完成情况表EXCEL表到处理结果文件夹")
+            plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
+            plt.rcParams['axes.unicode_minus'] = False  # 显示负号
+            plt.figure(dpi=300)
+            plt.title(classList[int(c) - 1] + '总大学习完成情况', fontsize='20')
+            plt.xlabel("大学习期数", fontsize='16')
+            plt.xticks(range(len(df['大学习期数'])), df['大学习期数'], rotation=45)
+            plt.ylabel("完成率（单位：%）", fontsize='16')
+            plt.plot(df['大学习期数'], df['完成率%'], color='#002EA6', linewidth=2, linestyle=':', marker='o')
+            # df.plot()
+            # plt.show()
+            outfile = classList[int(c) - 1] + '总大学习完成情况.png'
+            plt.savefig(outfile, bbox_inches='tight')
+            mymovefile(classList[int(c) - 1] + '总大学习完成情况.png',
+                       "./处理结果/" + classList[int(c) - 1] + '总大学习完成情况.png')
+            plt.close()
+            print("已导出" + classList[int(c) - 1] + "总大学习完成情况可视化统计图到处理结果文件夹")
+        case 4:
+            courseList = getCourseInfo(True)
+            courseId = courseList[0]['id']
+            df = pd.read_excel("大学习名单.xlsx")
+            biaoshi = []
+            for i in range(1, df.shape[0] + 1):
+                biaoshi.append(df.loc[[i - 1]].values[0][0] + df.loc[[i - 1]].values[0][1])
+            df.insert(df.shape[1], '标识符', biaoshi)
+            dfJson = orjson.loads(df.to_json(orient='records'))
+            datas = {}
+            for i in dfJson:
+                datas[i['标识符']] = {'姓名': i['姓名'], '所在团支部': i['所在团支部'], '完成情况': '未完成'}
+            url = "https://jxtw.h5yunban.cn/jxtw-qndxx/cgi-bin/branch-api/course/records"
+            values = {'course': courseId, 'nid': organizationInfo['branch'], 'accessToken': Token,
+                      'pageSize': '1000',
+                      'pageNum': 1}
+            resData = {}
+            while True:
+                result = sendGet(url, values)
+                if values['pageNum'] != 1:
+                    resData.extend(result['list'])
+                else:
+                    resData = result['list']
+                if int(result['pagedInfo']['total']) > int(result['pagedInfo']['pageSize']) * int(
+                        result['pagedInfo']['pageNum']):
+                    values['pageNum'] = values['pageNum'] + 1
+                else:
+                    break
+            errorTxt = ""
+            with tqdm(total=len(resData), desc='数据处理中', leave=True) as pbar:
+                for i in resData:
+                    try:
+                        perData = orjson.loads(str(i).replace('\'', '\"'))
+                        datas[i['cardNo'] + i['branchs'][-1].replace('团支部', '')]['完成情况'] = '已完成'
+                    except KeyError:
+                        errorTxt = errorTxt + (
+                                "姓名 " + i['cardNo'] + "  或者 " + i['branchs'][-1].replace('团支部',
+                                                                                         '') + " 团支部不存在或此人不属于此团支部，已跳过!\n")
+                    time.sleep(0.001)
+                    pbar.update(1)
+            edf = pd.DataFrame(datas)
+            edf = pd.DataFrame(edf.values.T, index=edf.columns, columns=edf.index)
+            excel = pd.ExcelWriter("大学习未完成情况.xlsx")
+            edf.to_excel(excel)
+            excel.save()
+            filename = r'大学习未完成情况.xlsx'
+            wb = load_workbook(filename)
+            ws = wb.active
+            ws.delete_cols(1)  # 删除第 13 列数据
+            wb.save(filename)
+            mymovefile("大学习未完成情况.xlsx", "./处理结果/大学习未完成情况.xlsx")
+            if errorTxt != "":
+                print("已导出未完成情况表EXCEL表到处理结果文件夹，其中一些数据似乎有误：\n" + errorTxt)
+            else:
+                print("已导出未完成情况表EXCEL表到处理结果文件夹")
+        case 5:
+            exit()
+        case _:
+            print("输入菜单无效，请重新输入！")
