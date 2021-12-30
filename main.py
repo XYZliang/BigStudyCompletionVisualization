@@ -1,11 +1,13 @@
 # -* - coding: UTF-8 -* -
+
 import configparser
 import os
+import platform
 import re
 import shutil
 import time
 import urllib
-
+import sys
 import orjson
 import pandas as pd
 import requests
@@ -231,7 +233,7 @@ def getCourseInfo(info=False):
     total = len(result)
     end = total
     result = list(reversed(result))
-    print("\033c", end="")
+    cleanWin()
     for i in range(1, total + 1):
         if IgnoreCourseBefore != "":
             if int(re.findall("\d+", result[i - 1]['id'])[0]) < int(re.findall("\d+", IgnoreCourseBefore)[0]):
@@ -248,7 +250,7 @@ def getCourseInfo(info=False):
     chose = input()
     if chose == '':
         chose = 1
-    print("\033c", end="")
+    cleanWin()
     print("已选中青年大学习的" + result[int(chose) - 1]['title'] + "数据")
     global courseId
     courseId = result[int(chose) - 1]['id']
@@ -285,6 +287,7 @@ def getStudyInfo():
     excel = pd.ExcelWriter(str(courseName + "大学习完成情况.xlsx"))
     df.to_excel(excel, index=True, header=False)
     excel.save()
+    excel.close()
     mymovefile(str("./" + courseName + "大学习完成情况.xlsx"), "./处理结果/" + courseName + "大学习完成情况.xlsx")
     # for u in df['团委名称']:
     #     u = str(u).replace("团支部", "")
@@ -332,9 +335,9 @@ def outMenu(name, values, width):
 
 
 def showMenu():
-    print("\033c", end="")
+    cleanWin()
     print("欢迎" + organizationInfo['branch'])
-    menu = ['导出某期大学习各班完成率表格及统计图', '导出总大学习完成情况情况表格及折线图', '导出某班每次大学习完成率情况表格及折线图', '导出最新一期未完成名单及其统计图', '退出程序']
+    menu = ['导出某期大学习各班完成率表格及统计图', '导出总大学习完成情况情况表格及折线图', '导出某班每次大学习完成率情况表格及折线图', '导出最新一期未完成名单', '退出程序']
 
     info = ("欢迎使用BigStudyCompletionVisualization，请选择功能(1~" + str(len(menu)) + ")：")
     for i in range(1, len(menu) + 1):
@@ -365,8 +368,15 @@ def getLearnTimeGroupByClass(thisCourseId):
     return res
 
 
+def cleanWin():
+    if platform.system().lower() == 'windows':
+        os.system('cls')
+    else:
+        os.system('clean')
+
+
 if __name__ == '__main__':
-    exit()
+    print("程序初始化中。。")
     readConfig()
     checkToken()
     fun = showMenu()
@@ -386,6 +396,7 @@ if __name__ == '__main__':
         excel = pd.ExcelWriter("总大学习完成情况.xlsx")
         df.to_excel(excel)
         excel.save()
+        excel.close()
         mymovefile("总大学习完成情况.xlsx", "./处理结果/总大学习完成情况.xlsx")
         print("已导出总完成情况表EXCEL表到处理结果文件夹")
         plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
@@ -405,6 +416,7 @@ if __name__ == '__main__':
         plt.close()
         print("已导出总大学习完成情况可视化统计图到处理结果文件夹")
     elif int(fun) == 3:
+        print("获取数据中")
         courseHis = {}
         courseList = getCourseInfo(True)
         with tqdm(total=len(courseList), desc='数据统计', leave=True) as pbar:
@@ -424,7 +436,7 @@ if __name__ == '__main__':
             outMenu(str(i), classList[i - 1], len(noti.encode('GBK')) - 1)
         print(noti)
         c = input()
-        print("\033c", end="")
+        cleanWin()
         data = courseHis[classList[int(c) - 1]]
         datas = {'大学习期数': [], '完成率%': []}
         # dataList = list(data.keys())
@@ -436,6 +448,7 @@ if __name__ == '__main__':
         excel = pd.ExcelWriter(classList[int(c) - 1] + "总大学习完成情况.xlsx")
         df.to_excel(excel)
         excel.save()
+        excel.close()
         mymovefile(classList[int(c) - 1] + "总大学习完成情况.xlsx", "./处理结果/" + classList[int(c) - 1] + "总大学习完成情况.xlsx")
         print("已导出" + classList[int(c) - 1] + "总完成情况表EXCEL表到处理结果文件夹")
         plt.rcParams['font.sans-serif'] = ['FangSong']  # 显示中、文
@@ -499,14 +512,18 @@ if __name__ == '__main__':
         excel = pd.ExcelWriter("大学习未完成情况.xlsx")
         edf.to_excel(excel)
         excel.save()
-        filename = r'大学习未完成情况.xlsx'
+        excel.close()
+        mymovefile("大学习未完成情况.xlsx", "./处理结果/大学习未完成情况.xlsx")
+        filename = r'./处理结果/大学习未完成情况.xlsx'
         wb = load_workbook(filename)
         ws = wb.active
         ws.delete_cols(1)  # 删除第 13 列数据
         wb.save(filename)
-        mymovefile("大学习未完成情况.xlsx", "./处理结果/大学习未完成情况.xlsx")
+
         if errorTxt != "":
             print("已导出未完成情况表EXCEL表到处理结果文件夹，其中一些数据似乎有误：\n" + errorTxt)
+            print("按任意键退出！")
+            c = input()
         else:
             print("已导出未完成情况表EXCEL表到处理结果文件夹")
     elif int(fun) == 5:
