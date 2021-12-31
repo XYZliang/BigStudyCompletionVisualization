@@ -369,10 +369,12 @@ def getLearnTimeGroupByClass(thisCourseId):
 
 
 def cleanWin():
-    if platform.system().lower() == 'windows':
-        os.system('cls')
-    else:
-        os.system('clean')
+    # if platform.system().lower() == 'windows':
+    #     os.system('cls')
+    # else:
+    #     os.system('alias cls=\'print "\033c"\' && cls')
+    os.system("alias cls='print '\033c'';clear&cls")
+    time.sleep(0.1)
 
 
 if __name__ == '__main__':
